@@ -66,3 +66,51 @@ One smooth, vsync-locked spring expands/collapses every visible row's subtitle t
 - **Reduce-motion is a required branch, not an afterthought.** Every animated path has a settled-state fast path.
 - **Teardown is mandatory.** Observers, `Task`s, Combine subscriptions, table delegates, and document views are all explicitly nilled in the various `tearDown()` / `prepareForMemoryRelease()` methods. New retained state goes there too.
 - **Strings arrive pre-localized** from the host app via `SettingsConfiguration`; this package does no localization.
+
+## Releases & changelogs
+
+This is the **canonical reference** for the `Better*` release process. Releases are cut **manually**
+with the `gh` CLI — there is no CI release workflow and no `CHANGELOG.md` file in the repo. The
+changelog *is* the GitHub Release body.
+
+### Versioning
+SemVer `MAJOR.MINOR.PATCH`. Tags are the bare version with no prefix (e.g. `0.2.8`); the release
+title is the same bare version.
+- `MAJOR` — source-breaking API change.
+- `MINOR` — new backward-compatible API or feature.
+- `PATCH` — bug fix, performance, or internal change with no API change.
+
+### Cutting a release
+1. Land all changes on `main`; one tag = one coherent unit of work.
+2. Tag and push:
+   ```bash
+   git tag <version> && git push origin <version>
+   ```
+3. Publish the release with the changelog as its body:
+   ```bash
+   gh release create <version> -R rokartur/BetterSettings --title "<version>" --notes-file notes.md --verify-tag
+   ```
+   Add `--prerelease` for any prerelease (`-beta.N`) tag.
+
+### Changelog format (the release body)
+Concrete and technical, never generic filler:
+
+- **First line** is `## <headline>` — one specific sentence on what the release delivers.
+- Optionally one line of prose context after it.
+- Group entries under only the sections that apply (omit the rest):
+  - `### Added` — new public API / features
+  - `### Changed` — behavior or API changes
+  - `### Fixed` — bug fixes
+  - `### Performance` — speed / memory wins (say if perceived motion is unchanged)
+  - `### Removed` — deleted API
+- Every bullet names the **real symbols** that changed in `backticks` (types, methods, flags) and
+  states the behavior — derived from the actual diff, never invented. A one-fix release can be the
+  headline plus a single bullet; don't pad.
+- End any release that has a predecessor with a compare footer (blank line before it):
+  ```
+  **Full changelog:** https://github.com/rokartur/BetterSettings/compare/<prev>...<version>
+  ```
+  The first release in a series omits the footer.
+
+Regenerate a body from history with `git log --no-merges <prev>..<version>` and
+`git diff --stat <prev>..<version>`, then write it in the format above.
