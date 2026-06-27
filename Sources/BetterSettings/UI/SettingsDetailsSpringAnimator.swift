@@ -40,12 +40,6 @@ final class SettingsDetailsSpringAnimator {
     static let dampingCollapse: Double = 0.85
     /// Travel (points) at which a row is considered "tall" and uses the long response.
     static let referenceTravel: CGFloat = 80
-    /// Per-row start delay (seconds) so rows cascade top-to-bottom on **expand**
-    /// instead of moving in dead unison — identical-height rows looked mechanical
-    /// in lockstep. Collapse skips the cascade (all rows close together).
-    static let stagger: Double = 0.03
-    /// Cap on the cascade so a long tab doesn't ripple for too long.
-    static let maxStagger: Double = 0.18
 
     /// One row's subtitle tween + its own spring state, so each row's timing
     /// scales with its travel distance.
@@ -64,7 +58,6 @@ final class SettingsDetailsSpringAnimator {
         var omega0: Double = 0
         var zeta: Double = 0
         var settled = false
-        var delay: Double = 0      // seconds to wait before this row starts (cascade)
 
         init(constraint: NSLayoutConstraint, label: NSTextField?, root: NSView?,
              fromHeight: CGFloat, toHeight: CGFloat, fromAlpha: CGFloat, toAlpha: CGFloat,
@@ -121,8 +114,6 @@ final class SettingsDetailsSpringAnimator {
     private var lastTimestamp: CFTimeInterval = 0
     private var startScheduled = false
     private var isRunning = false
-    private var batchIndex = 0          // running index for assigning cascade delays
-    private var elapsed: Double = 0      // seconds since this run started
 
     private init() {}
 
@@ -139,24 +130,18 @@ final class SettingsDetailsSpringAnimator {
         toAlpha: CGFloat,
         onFinish: @escaping () -> Void
     ) {
-        // First registration of a fresh batch resets the cascade counter.
-        if !isRunning && !startScheduled { batchIndex = 0 }
-
         let key = ObjectIdentifier(constraint)
         let fromHeight = constraint.constant
         let fromAlpha = label.map { CGFloat($0.alphaValue) } ?? toAlpha
 
         let track: Track
-        let isNew: Bool
         if let existing = tracks[key] {
             track = existing
-            isNew = false
         } else {
             track = Track(constraint: constraint, label: label, root: root,
                           fromHeight: fromHeight, toHeight: toHeight,
                           fromAlpha: fromAlpha, toAlpha: toAlpha, onFinish: onFinish)
             tracks[key] = track
-            isNew = true
         }
         track.label = label
         track.root = root
@@ -166,16 +151,8 @@ final class SettingsDetailsSpringAnimator {
         track.toAlpha = toAlpha
         track.onFinish = onFinish
         configureSpring(track)
-        // Collapse closes every row in the same instant (no cascade) — hiding
-        // details should feel like one motion, not a ripple. Expand still
-        // cascades top-to-bottom so identical-height rows don't open in dead unison.
-        let isCollapsing = toHeight < fromHeight - 0.5
-        if isCollapsing {
-            track.delay = 0
-        } else if isNew {
-            track.delay = min(Double(batchIndex) * Self.stagger, Self.maxStagger)
-            batchIndex += 1
-        }
+        // Every row starts on the same tick — expand and collapse both move as one
+        // motion, not a top-to-bottom ripple.
 
         if !isRunning { scheduleStart() }
     }
@@ -204,7 +181,6 @@ final class SettingsDetailsSpringAnimator {
         guard !tracks.isEmpty, !isRunning else { return }
 
         lastTimestamp = 0
-        elapsed = 0
         isRunning = true
         scrollAnchor = captureScrollAnchor()
 
@@ -242,12 +218,9 @@ final class SettingsDetailsSpringAnimator {
         guard dt > 0 else { return }
         // Clamp dt so a dropped frame / paused app can't make the integrator explode.
         dt = min(max(dt, 1.0 / 240.0), 1.0 / 30.0)
-        elapsed += dt
 
-        // Integrate each row's own spring (semi-implicit Euler toward s = 1), once
-        // its cascade delay has elapsed.
+        // Integrate each row's own spring (semi-implicit Euler toward s = 1).
         for track in tracks.values where !track.settled {
-            guard elapsed >= track.delay else { continue }
             let k = track.omega0 * track.omega0
             let c = 2 * track.zeta * track.omega0
             let a = -k * (track.s - 1.0) - c * track.v
