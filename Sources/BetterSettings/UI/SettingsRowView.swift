@@ -404,20 +404,22 @@ public final class SettingsRowView: NSView {
             layoutAnimationRoot().layoutSubtreeIfNeeded()
         }
 
-        // Widest resolved container width — max over candidates > 1, without
-        // allocating intermediate arrays/closures (this runs per row per layout).
-        var widest: CGFloat = 1
-        let superBoundsWidth = subtitleLabel.superview?.bounds.width ?? 0
-        if superBoundsWidth > widest { widest = superBoundsWidth }
-        let superFrameWidth = subtitleLabel.superview?.frame.width ?? 0
-        if superFrameWidth > widest { widest = superFrameWidth }
-        let textColumnBoundsWidth = textColumn?.bounds.width ?? 0
-        if textColumnBoundsWidth > widest { widest = textColumnBoundsWidth }
-        let textColumnFrameWidth = textColumn?.frame.width ?? 0
-        if textColumnFrameWidth > widest { widest = textColumnFrameWidth }
-        if bounds.width > widest { widest = bounds.width }
-        if frame.width > widest { widest = frame.width }
-        if widest > 1 { return widest }
+        // Innermost resolved width wins, never the widest: the clipping
+        // container is what the label is laid out in, and every view outside it
+        // is wider — the text column by the stack's own edge inset, the row by
+        // the icon, the spacing and the accessory. Measuring against an outer
+        // view reports fewer lines than the label wraps into, and the extra
+        // line is then eaten by `clipsToBounds`. Localized copy sits anywhere in
+        // that band, so an English string that fits is no proof.
+        // Checked without allocating (this runs per row per layout).
+        if let container = subtitleLabel.superview {
+            if container.bounds.width > 1 { return container.bounds.width }
+            if container.frame.width > 1 { return container.frame.width }
+        }
+        if let textColumn {
+            if textColumn.bounds.width > 1 { return textColumn.bounds.width }
+            if textColumn.frame.width > 1 { return textColumn.frame.width }
+        }
 
         // First valid fallback width, in priority order.
         if subtitleLabel.bounds.width > 1 { return subtitleLabel.bounds.width }
