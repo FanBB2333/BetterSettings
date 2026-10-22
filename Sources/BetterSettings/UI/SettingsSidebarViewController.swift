@@ -25,6 +25,7 @@ final class SettingsSidebarViewController: NSViewController,
         static let searchHeight: CGFloat = 28
         static let tabWidth: CGFloat = 195
         static let tabHeight: CGFloat = 32
+        static let headerHeight: CGFloat = 28
         static let searchResultHeight: CGFloat = 44
         static let contentPadding: CGFloat = 6
         static let sourceListInsetCompensation: CGFloat = 16
@@ -36,13 +37,15 @@ final class SettingsSidebarViewController: NSViewController,
         static let searchDebounce: TimeInterval = 0.18
     }
 
-    private enum Row: Hashable {
+    enum Row: Hashable {
+        case header(String)
         case tab(String)
         case setting(SettingsSearchResult)
         case empty
     }
 
     private static let cellID = NSUserInterfaceItemIdentifier("BetterSettingsSidebarCell")
+    private static let headerID = NSUserInterfaceItemIdentifier("BetterSettingsSidebarHeader")
     private static let rowID = NSUserInterfaceItemIdentifier("BetterSettingsSidebarRow")
     private static let columnID = NSUserInterfaceItemIdentifier("BetterSettingsSidebarColumn")
 
@@ -100,7 +103,14 @@ final class SettingsSidebarViewController: NSViewController,
         super.viewDidLoad()
         setupSearchField()
         setupTableView()
-        if configuration.showsDetailsToggle { setupDetailsToggle() } else { pinScrollViewBottomToView() }
+        if #available(macOS 26.0, *) {
+            // The details toggle, when shown, is the split item's bottom accessory (makeDetailsAccessory).
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
+        } else if configuration.showsDetailsToggle {
+            setupDetailsToggle()
+        } else {
+            pinScrollViewBottomToView()
+        }
         applySearch(query: "")
 
         routerSubscription = router.$selectedTabID
@@ -170,9 +180,21 @@ final class SettingsSidebarViewController: NSViewController,
         scrollView.drawsBackground = false
         scrollView.automaticallyAdjustsContentInsets = false
 
-        view.addSubview(searchField)
         view.addSubview(scrollView)
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
 
+        if #available(macOS 26.0, *) {
+            // The search field lives in the split item's top accessory (makeSearchAccessory),
+            // so the list runs to the top and scrolls under it with the system edge effect.
+            scrollView.automaticallyAdjustsContentInsets = true
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
+            return
+        }
+
+        view.addSubview(searchField)
         let topConstraint = searchField.topAnchor.constraint(equalTo: view.topAnchor, constant: Metrics.searchTopInset)
         searchTopConstraint = topConstraint
 
@@ -181,11 +203,27 @@ final class SettingsSidebarViewController: NSViewController,
             searchField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Metrics.horizontalPadding),
             searchField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Metrics.horizontalPadding),
             searchField.heightAnchor.constraint(equalToConstant: Metrics.searchHeight),
-
             scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: Metrics.searchBottomSpacing),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
+    }
+
+    @available(macOS 26.0, *)
+    func makeSearchAccessory() -> NSSplitViewItemAccessoryViewController {
+        let container = NSView()
+        container.addSubview(searchField)
+        NSLayoutConstraint.activate([
+            searchField.topAnchor.constraint(equalTo: container.topAnchor),
+            searchField.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Metrics.searchBottomSpacing),
+            searchField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Metrics.horizontalPadding),
+            searchField.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Metrics.horizontalPadding),
+            searchField.heightAnchor.constraint(equalToConstant: Metrics.searchHeight),
+        ])
+        let accessory = NSSplitViewItemAccessoryViewController()
+        accessory.view = container
+        if #available(macOS 26.1, *) {
+            accessory.preferredScrollEdgeEffectStyle = .soft
+        }
+        return accessory
     }
 
     private func pinScrollViewBottomToView() {
@@ -193,6 +231,39 @@ final class SettingsSidebarViewController: NSViewController,
     }
 
     private func setupDetailsToggle() {
+        let bar = makeDetailsBar()
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(bar)
+        NSLayoutConstraint.activate([
+            scrollView.bottomAnchor.constraint(equalTo: bar.topAnchor, constant: -8),
+            bar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Metrics.horizontalPadding + 4),
+            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Metrics.horizontalPadding),
+            bar.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
+        ])
+    }
+
+    @available(macOS 26.0, *)
+    func makeDetailsAccessory() -> NSSplitViewItemAccessoryViewController? {
+        guard configuration.showsDetailsToggle else { return nil }
+        let bar = makeDetailsBar()
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView()
+        container.addSubview(bar)
+        NSLayoutConstraint.activate([
+            bar.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            bar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            bar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Metrics.horizontalPadding),
+            bar.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Metrics.horizontalPadding),
+        ])
+        let accessory = NSSplitViewItemAccessoryViewController()
+        accessory.view = container
+        if #available(macOS 26.1, *) {
+            accessory.preferredScrollEdgeEffectStyle = .soft
+        }
+        return accessory
+    }
+
+    private func makeDetailsBar() -> NSView {
         detailsLabel.stringValue = configuration.showDetailsLabel
         detailsLabel.font = .systemFont(ofSize: 12)
         detailsLabel.textColor = .secondaryLabelColor
@@ -205,26 +276,18 @@ final class SettingsSidebarViewController: NSViewController,
         detailsToggle.action = #selector(detailsToggleChanged(_:))
         detailsToggle.state = SettingsDetails.isOn ? .on : .off
 
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(detailsLabel)
-        container.addSubview(detailsToggle)
+        let bar = NSView()
+        bar.addSubview(detailsLabel)
+        bar.addSubview(detailsToggle)
         NSLayoutConstraint.activate([
-            detailsLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            detailsLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            detailsLabel.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
+            detailsLabel.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
             detailsToggle.leadingAnchor.constraint(greaterThanOrEqualTo: detailsLabel.trailingAnchor, constant: 6),
-            detailsToggle.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            detailsToggle.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            container.heightAnchor.constraint(equalToConstant: 22),
+            detailsToggle.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
+            detailsToggle.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+            bar.heightAnchor.constraint(equalToConstant: 22),
         ])
-
-        view.addSubview(container)
-        NSLayoutConstraint.activate([
-            scrollView.bottomAnchor.constraint(equalTo: container.topAnchor, constant: -8),
-            container.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Metrics.horizontalPadding + 4),
-            container.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Metrics.horizontalPadding),
-            container.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
-        ])
+        return bar
     }
 
     @objc private func detailsToggleChanged(_ sender: NSSwitch) {
@@ -277,7 +340,7 @@ final class SettingsSidebarViewController: NSViewController,
         searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if searchQuery.isEmpty {
-            rows = configuration.tabs.map { .tab($0.id) }
+            rows = Self.tabRows(for: configuration.tabs)
         } else {
             let results = searchIndex.search(query: searchQuery)
             rows = results.isEmpty ? [.empty] : results.map { .setting($0) }
@@ -293,6 +356,19 @@ final class SettingsSidebarViewController: NSViewController,
     }
 
     // MARK: - Selection
+
+    static func tabRows(for tabs: [SettingsTab]) -> [Row] {
+        var rows: [Row] = []
+        var previousGroup: String?
+        for tab in tabs {
+            if let group = tab.group, group != previousGroup {
+                rows.append(.header(group))
+            }
+            previousGroup = tab.group
+            rows.append(.tab(tab.id))
+        }
+        return rows
+    }
 
     func selectRow(for tabID: String) {
         guard !isSearchActive else { return }
@@ -310,7 +386,7 @@ final class SettingsSidebarViewController: NSViewController,
         switch row {
         case .tab(let id): router.navigateToTabTop(id)
         case .setting(let result): router.navigateToSearchResult(result)
-        case .empty: tableView.deselectAll(nil)
+        case .header, .empty: tableView.deselectAll(nil)
         }
     }
 
@@ -380,14 +456,19 @@ final class SettingsSidebarViewController: NSViewController,
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         guard rows.indices.contains(row) else { return Metrics.tabHeight }
-        if case .setting = rows[row] { return Metrics.searchResultHeight }
-        return Metrics.tabHeight
+        switch rows[row] {
+        case .setting: return Metrics.searchResultHeight
+        case .header: return Metrics.headerHeight
+        case .tab, .empty: return Metrics.tabHeight
+        }
     }
 
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
         guard rows.indices.contains(row) else { return false }
-        if case .empty = rows[row] { return false }
-        return true
+        switch rows[row] {
+        case .tab, .setting: return true
+        case .header, .empty: return false
+        }
     }
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
@@ -398,6 +479,11 @@ final class SettingsSidebarViewController: NSViewController,
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard rows.indices.contains(row) else { return nil }
+        if case .header(let title) = rows[row] {
+            let header = (tableView.makeView(withIdentifier: Self.headerID, owner: nil) as? SidebarHeaderCellView) ?? makeHeaderCell()
+            header.title = title
+            return header
+        }
         let cell = (tableView.makeView(withIdentifier: Self.cellID, owner: nil) as? SidebarCellView) ?? makeCell()
         configure(cell: cell, for: rows[row])
         cell.applySelectionStyle(isSelected: tableView.selectedRow == row, isEmphasized: isSelectionEmphasized)
@@ -427,6 +513,12 @@ final class SettingsSidebarViewController: NSViewController,
         )
         cell.identifier = Self.cellID
         return cell
+    }
+
+    private func makeHeaderCell() -> SidebarHeaderCellView {
+        let header = SidebarHeaderCellView(leadingInset: Metrics.contentPadding)
+        header.identifier = Self.headerID
+        return header
     }
 
     private func makeRowView() -> SidebarRowView {
@@ -460,6 +552,8 @@ final class SettingsSidebarViewController: NSViewController,
             )
         case .empty:
             cell.configureAsEmpty(text: configuration.noResultsText)
+        case .header:
+            break
         }
     }
 

@@ -422,3 +422,35 @@ final class SidebarRowView: NSTableRowView {
         path.fill()
     }
 }
+
+// MARK: - Group header
+
+final class SidebarHeaderCellView: NSTableCellView {
+
+    private let label = NSTextField(labelWithString: "")
+
+    var title: String {
+        get { label.stringValue }
+        set { label.stringValue = newValue }
+    }
+
+    init(leadingInset: CGFloat) {
+        super.init(frame: .zero)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        addSubview(label)
+        // Same -7pt source-list compensation as SidebarCellView, so headers align with tab titles' icon column.
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -7 + leadingInset),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+}

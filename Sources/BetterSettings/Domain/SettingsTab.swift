@@ -73,18 +73,22 @@ public struct SettingsTab: Identifiable, Sendable, Hashable {
     public let iconStyle: SettingsTabIconStyle
     /// When `true` the sidebar renders a small "BETA" pill after the title.
     public let isBeta: Bool
+    /// Sidebar header shown above the first tab of each run of tabs sharing this value.
+    public let group: String?
 
     public init(
         id: String,
         title: String,
         icon: String,
         iconStyle: SettingsTabIconStyle = .neutral,
-        isBeta: Bool = false
+        isBeta: Bool = false,
+        group: String? = nil
     ) {
         self.id = id
         self.title = title
         self.icon = icon
         self.iconStyle = iconStyle
         self.isBeta = isBeta
+        self.group = group
     }
 }
