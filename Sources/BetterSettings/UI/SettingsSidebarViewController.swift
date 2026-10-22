@@ -23,6 +23,8 @@ final class SettingsSidebarViewController: NSViewController,
         static let searchOffsetBelowTrafficLights: CGFloat = 26
         static let searchBottomSpacing: CGFloat = 2
         static let searchHeight: CGFloat = 28
+        static let edgeFadeLength: CGFloat = 16
+        static let listBottomInset: CGFloat = 12
         static let tabWidth: CGFloat = 195
         static let tabHeight: CGFloat = 32
         static let headerHeight: CGFloat = 28
@@ -55,6 +57,8 @@ final class SettingsSidebarViewController: NSViewController,
     private let searchField = NSSearchField()
     private let tableView = ReclickableTableView()
     private let scrollView = NSScrollView()
+    private let edgeFadeMask = SettingsSidebarViewController.makeEdgeFadeMask()
+    private var detailsBar: NSView?
     private let detailsToggle = NSSwitch()
     private let detailsLabel = NSTextField(labelWithString: "")
     private var searchTopConstraint: NSLayoutConstraint?
@@ -124,6 +128,9 @@ final class SettingsSidebarViewController: NSViewController,
     override func viewDidAppear() {
         super.viewDidAppear()
         installWindowActivityObservers()
+        // selectRow ran while the sidebar was still a few points tall and scrolled the list down.
+        tableView.scrollRowToVisible(0)
+        if tableView.selectedRow >= 0 { tableView.scrollRowToVisible(tableView.selectedRow) }
         refreshVisibleRowStyles()
     }
 
@@ -135,6 +142,7 @@ final class SettingsSidebarViewController: NSViewController,
     override func viewDidLayout() {
         super.viewDidLayout()
         updateSearchTopInsetRelativeToTrafficLights()
+        updateInViewEdges()
     }
 
     // MARK: - Setup
@@ -194,6 +202,10 @@ final class SettingsSidebarViewController: NSViewController,
             return
         }
 
+        // The list runs under the search field and the details bar; viewDidLayout insets it past them and fades its edges.
+        scrollView.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
+        scrollView.wantsLayer = true
+        scrollView.layer?.mask = edgeFadeMask
         view.addSubview(searchField)
         let topConstraint = searchField.topAnchor.constraint(equalTo: view.topAnchor, constant: Metrics.searchTopInset)
         searchTopConstraint = topConstraint
@@ -203,8 +215,36 @@ final class SettingsSidebarViewController: NSViewController,
             searchField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Metrics.horizontalPadding),
             searchField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Metrics.horizontalPadding),
             searchField.heightAnchor.constraint(equalToConstant: Metrics.searchHeight),
-            scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: Metrics.searchBottomSpacing),
         ])
+    }
+
+    /// In-sidebar stand-in for the split-item accessory scroll edge effect, which on macOS 27 draws an opaque band.
+    private func updateInViewEdges() {
+        guard searchField.superview === view else { return }
+        let height = view.bounds.height
+        let top = height - searchField.frame.minY + Metrics.searchBottomSpacing
+        let bottom = detailsBar.map { $0.frame.maxY + 8 } ?? Metrics.listBottomInset
+        let insets = NSEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
+        if scrollView.contentInsets.top != insets.top || scrollView.contentInsets.bottom != insets.bottom {
+            scrollView.contentInsets = insets
+            scrollView.scrollerInsets = insets
+        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        edgeFadeMask.frame = scrollView.bounds
+        guard height > 0 else { CATransaction.commit(); return }
+        // NSScrollView's layer is geometry-flipped, so gradient location 0 is the top edge.
+        let fade = Metrics.edgeFadeLength
+        edgeFadeMask.locations = [
+            0,
+            NSNumber(value: (top - fade) / height),
+            NSNumber(value: top / height),
+            NSNumber(value: (height - bottom) / height),
+            NSNumber(value: (height - bottom + fade) / height),
+            1,
+        ]
+        CATransaction.commit()
     }
 
     @available(macOS 26.0, *)
@@ -228,15 +268,24 @@ final class SettingsSidebarViewController: NSViewController,
     }
 
     private func pinScrollViewBottomToView() {
-        scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12).isActive = true
+        scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
+    }
+
+    private static func makeEdgeFadeMask() -> CAGradientLayer {
+        let mask = CAGradientLayer()
+        let clear = NSColor.clear.cgColor
+        let opaque = NSColor.black.cgColor
+        mask.colors = [clear, clear, opaque, opaque, clear, clear]
+        return mask
     }
 
     private func setupDetailsToggle() {
         let bar = makeDetailsBar()
         bar.translatesAutoresizingMaskIntoConstraints = false
+        detailsBar = bar
         view.addSubview(bar)
         NSLayoutConstraint.activate([
-            scrollView.bottomAnchor.constraint(equalTo: bar.topAnchor, constant: -8),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             bar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Metrics.horizontalPadding + 4),
             bar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Metrics.horizontalPadding),
             bar.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
