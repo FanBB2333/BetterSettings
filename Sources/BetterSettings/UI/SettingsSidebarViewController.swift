@@ -214,8 +214,9 @@ final class SettingsSidebarViewController: NSViewController,
         NSLayoutConstraint.activate([
             searchField.topAnchor.constraint(equalTo: container.topAnchor),
             searchField.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Metrics.searchBottomSpacing),
-            searchField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Metrics.horizontalPadding),
-            searchField.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Metrics.horizontalPadding),
+            // The accessory already insets its content to the source-list row inset; adding ours made the field narrower than the rows.
+            searchField.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            searchField.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             searchField.heightAnchor.constraint(equalToConstant: Metrics.searchHeight),
         ])
         let accessory = NSSplitViewItemAccessoryViewController()
