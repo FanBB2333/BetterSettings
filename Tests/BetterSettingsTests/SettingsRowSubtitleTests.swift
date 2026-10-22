@@ -52,6 +52,46 @@ final class SettingsRowSubtitleTests: XCTestCase {
                        "subtitle height was measured against the wrong view's width")
     }
 
+    // Media Keys "Compact mode": short subtitle, accessory in a plain container. The column
+    // used to size to its text and ping-pong with preferredMaxLayoutWidth until AppKit threw.
+    func testTextColumnTakesTheRowsSlackNextToAPlainContainerAccessory() async throws {
+        let toggle = NSSwitch()
+        toggle.translatesAutoresizingMaskIntoConstraints = false
+        let accessory = NSView()
+        accessory.addSubview(toggle)
+        NSLayoutConstraint.activate([
+            toggle.leadingAnchor.constraint(equalTo: accessory.leadingAnchor),
+            toggle.trailingAnchor.constraint(equalTo: accessory.trailingAnchor),
+            toggle.topAnchor.constraint(equalTo: accessory.topAnchor),
+            toggle.bottomAnchor.constraint(equalTo: accessory.bottomAnchor),
+        ])
+        let row = SettingsRowView(title: "Compact mode",
+                                  subtitle: "Show only the player icon and volume slider",
+                                  accessory: accessory)
+
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 200),
+                              styleMask: [.titled], backing: .buffered, defer: true)
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 200))
+        window.contentView = host
+        host.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+            row.topAnchor.constraint(equalTo: host.topAnchor),
+        ])
+        for _ in 0..<8 {
+            host.layoutSubtreeIfNeeded()
+            await Task.yield()
+        }
+
+        let column = try XCTUnwrap(subtitleLabel(in: row)?.superview)
+        let slack = row.bounds.width - accessory.frame.maxX
+        XCTAssertEqual(accessory.frame.width, toggle.fittingSize.width, accuracy: 1,
+                       "the accessory container took the column's slack")
+        XCTAssertEqual(slack, 0, accuracy: 1, "the accessory is not at the trailing edge")
+        XCTAssertGreaterThan(column.bounds.width, 400, "the column sized to its text, not the row")
+    }
+
     /// The subtitle is the smaller of the row's two labels.
     private func subtitleLabel(in row: SettingsRowView) -> NSTextField? {
         var fields: [NSTextField] = []

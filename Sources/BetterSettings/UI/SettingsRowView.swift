@@ -191,6 +191,9 @@ public final class SettingsRowView: NSView {
         hStack.orientation = .horizontal
         hStack.alignment = .top
         hStack.spacing = 6
+        // .gravityAreas sized the text column to its text, and the subtitle's
+        // preferredMaxLayoutWidth then fed back into that width until AppKit threw.
+        hStack.distribution = .fill
         hStack.translatesAutoresizingMaskIntoConstraints = false
         rowStack = hStack
 
@@ -213,12 +216,6 @@ public final class SettingsRowView: NSView {
         }
 
         hStack.addArrangedSubview(textColumn)
-
-        let spacer = NSView()
-        spacer.translatesAutoresizingMaskIntoConstraints = false
-        spacer.setContentHuggingPriority(.required, for: .horizontal)
-        spacer.setContentCompressionResistancePriority(.fittingSizeCompression, for: .horizontal)
-        hStack.addArrangedSubview(spacer)
 
         updateAccessory(accessory)
 
@@ -245,6 +242,10 @@ public final class SettingsRowView: NSView {
         accessory.translatesAutoresizingMaskIntoConstraints = false
         accessory.setContentHuggingPriority(.required, for: .horizontal)
         accessory.setContentCompressionResistancePriority(.required, for: .horizontal)
+        // A plain container has no intrinsic width, so hugging alone would let it take the text column's slack.
+        let hugContent = accessory.widthAnchor.constraint(equalToConstant: 0)
+        hugContent.priority = .init(rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 10)
+        hugContent.isActive = true
         rowStack.addArrangedSubview(accessory)
         accessoryView = accessory
     }
