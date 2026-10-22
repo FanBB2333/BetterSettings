@@ -21,7 +21,7 @@ final class SettingsSidebarViewController: NSViewController,
         static let trailingPadding: CGFloat = 6
         static let searchTopInset: CGFloat = 10
         static let searchOffsetBelowTrafficLights: CGFloat = 26
-        static let searchBottomSpacing: CGFloat = 12
+        static let searchBottomSpacing: CGFloat = 2
         static let searchHeight: CGFloat = 28
         static let tabWidth: CGFloat = 195
         static let tabHeight: CGFloat = 32
