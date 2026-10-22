@@ -103,7 +103,7 @@ final class SettingsSidebarViewController: NSViewController,
         super.viewDidLoad()
         setupSearchField()
         setupTableView()
-        if #available(macOS 26.0, *) {
+        if Self.usesSplitItemAccessories {
             // The details toggle, when shown, is the split item's bottom accessory (makeDetailsAccessory).
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
         } else if configuration.showsDetailsToggle {
@@ -186,7 +186,7 @@ final class SettingsSidebarViewController: NSViewController,
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
 
-        if #available(macOS 26.0, *) {
+        if Self.usesSplitItemAccessories {
             // The search field lives in the split item's top accessory (makeSearchAccessory),
             // so the list runs to the top and scrolls under it with the system edge effect.
             scrollView.automaticallyAdjustsContentInsets = true
@@ -369,6 +369,19 @@ final class SettingsSidebarViewController: NSViewController,
             rows.append(.tab(tab.id))
         }
         return rows
+    }
+
+    /// macOS 27 draws split-item accessories on an opaque band, so there the sidebar keeps
+    /// search and the details toggle in its own view, as before macOS 26.
+    static var usesSplitItemAccessories: Bool {
+        if #available(macOS 27, *) { return false }
+        if #available(macOS 26, *) { return true }
+        return false
+    }
+
+    // The system source-list selection is accent-colored only while the table is first responder.
+    func focusList() {
+        view.window?.makeFirstResponder(tableView)
     }
 
     func selectRow(for tabID: String) {

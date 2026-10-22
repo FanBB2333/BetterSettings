@@ -20,10 +20,10 @@ extension SettingsColor {
 }
 
 /// Centralized section-card chrome so every container matches macOS System
-/// Settings: 14pt continuous corners, hairline border, faint fill.
+/// Settings: 14pt continuous corners, faint fill, hairline border before macOS 27.
 enum SettingsSectionChrome {
     static let cornerRadius: CGFloat = 14
-    static let borderWidth: CGFloat = 0.5
+    static let borderWidth: CGFloat = if #available(macOS 27, *) { 0 } else { 0.5 }
 
     private static func isDark(_ appearance: NSAppearance) -> Bool {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua

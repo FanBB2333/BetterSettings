@@ -66,7 +66,7 @@ public final class SettingsWindowController: NSWindowController, NSWindowDelegat
         NSApp.activate(ignoringOtherApps: true)
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(nil)
+        splitVC.focusSidebar()
 
         // Retry next tick: an accessory app may still be mid activation-policy
         // transition and not yet hold key status.

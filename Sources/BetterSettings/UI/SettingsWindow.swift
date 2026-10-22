@@ -38,7 +38,8 @@ public final class SettingsWindow: NSWindow {
         )
 
         titleVisibility = .visible
-        titlebarAppearsTransparent = false
+        // macOS 27 draws an opaque titlebar strip over the content pane unless it is transparent.
+        titlebarAppearsTransparent = if #available(macOS 27, *) { true } else { false }
         titlebarSeparatorStyle = .automatic
 
         isMovableByWindowBackground = true
